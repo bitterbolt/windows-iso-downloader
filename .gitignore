@@ -1,0 +1,21 @@
+# Build output / binaries
+bin/
+obj/
+Release/
+[Dd]ebug/
+publish/
+*.exe
+*.dll
+
+# Backups
+*.bak
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+.DS_Store

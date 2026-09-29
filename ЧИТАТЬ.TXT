@@ -1,0 +1,1 @@
+"C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\Roslyn\csc.exe" /target:exe /platform:x64 /out:GetWindowsIso.exe /win32icon:"ICON.ICO" /r:System.dll /r:System.Windows.Forms.dll /r:System.Net.Http.dll /r:Newtonsoft.Json.dll Program.cs
