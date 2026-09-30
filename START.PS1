@@ -1,57 +1,57 @@
-function Get-Windows11DownloadUrl {
+п»їfunction Get-Windows11DownloadUrl {
     <#
     .SYNOPSIS
-        Получает прямую ссылку на ISO Windows 11 (последняя версия, Pro, русский, x64)
+        РџРѕР»СѓС‡Р°РµС‚ РїСЂСЏРјСѓСЋ СЃСЃС‹Р»РєСѓ РЅР° ISO Windows 11 (РїРѕСЃР»РµРґРЅСЏСЏ РІРµСЂСЃРёСЏ, Pro, СЂСѓСЃСЃРєРёР№, x64)
     #>
-    # Параметры (можно изменить при необходимости)
-    $ProductEditionId = "3262"      # Windows 11 Pro (x64) для 25H2
+    # РџР°СЂР°РјРµС‚СЂС‹ (РјРѕР¶РЅРѕ РёР·РјРµРЅРёС‚СЊ РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё)
+    $ProductEditionId = "3262"      # Windows 11 Pro (x64) РґР»СЏ 25H2
     $Locale           = "ru-ru"
     $LanguageName     = "Russian"
     $ArchType         = 1            # 1 = x64
 
-    # Настройка TLS (для старых Windows)
+    # РќР°СЃС‚СЂРѕР№РєР° TLS (РґР»СЏ СЃС‚Р°СЂС‹С… Windows)
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-    # Константы из Fido
+    # РљРѕРЅСЃС‚Р°РЅС‚С‹ РёР· Fido
     $org_id     = "y6jn8c31"
     $profileId  = "606624d44113"
     $instanceId = "560dc9f3-1aa5-4a2f-b63c-9e18f8d0e175"
 
-    # Генерация уникальной сессии
+    # Р“РµРЅРµСЂР°С†РёСЏ СѓРЅРёРєР°Р»СЊРЅРѕР№ СЃРµСЃСЃРёРё
     $sessionId = [guid]::NewGuid()
 
-    # 1. Запрос к vlscppe.microsoft.com/tags
+    # 1. Р—Р°РїСЂРѕСЃ Рє vlscppe.microsoft.com/tags
     Invoke-WebRequest -UseBasicParsing "https://vlscppe.microsoft.com/tags?org_id=$org_id&session_id=$sessionId" | Out-Null
 
-    # 2. Получение параметров w и rticks из mdt.js
+    # 2. РџРѕР»СѓС‡РµРЅРёРµ РїР°СЂР°РјРµС‚СЂРѕРІ w Рё rticks РёР· mdt.js
     $mdtJs = Invoke-WebRequest -UseBasicParsing "https://ov-df.microsoft.com/mdt.js?instanceId=$instanceId&PageId=si&session_id=$sessionId"
     $content = $mdtJs.Content
-    if ($content -match '[?&]w=([A-F0-9]+)') { $w = $matches[1] } else { throw "Не удалось извлечь w" }
-    if ($content -match 'rticks\=\"\+?(\d+)') { $rticks = $matches[1] } else { throw "Не удалось извлечь rticks" }
+    if ($content -match '[?&]w=([A-F0-9]+)') { $w = $matches[1] } else { throw "РќРµ СѓРґР°Р»РѕСЃСЊ РёР·РІР»РµС‡СЊ w" }
+    if ($content -match 'rticks\=\"\+?(\d+)') { $rticks = $matches[1] } else { throw "РќРµ СѓРґР°Р»РѕСЃСЊ РёР·РІР»РµС‡СЊ rticks" }
 
-    # 3. Ответ на ov-df.microsoft.com
+    # 3. РћС‚РІРµС‚ РЅР° ov-df.microsoft.com
     $mdt = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
     Invoke-WebRequest -UseBasicParsing "https://ov-df.microsoft.com/?session_id=$sessionId&CustomerId=$instanceId&PageId=si&w=$w&mdt=$mdt&rticks=$rticks" | Out-Null
 
-    # 4. Получение списка SKU (языков) для выбранного продукта
+    # 4. РџРѕР»СѓС‡РµРЅРёРµ СЃРїРёСЃРєР° SKU (СЏР·С‹РєРѕРІ) РґР»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РїСЂРѕРґСѓРєС‚Р°
     $skuInfo = Invoke-RestMethod -UseBasicParsing "https://www.microsoft.com/software-download-connector/api/getskuinformationbyproductedition?profile=$profileId&productEditionId=$ProductEditionId&SKU=undefined&friendlyFileName=undefined&Locale=$Locale&sessionID=$sessionId"
 
     $targetSku = $skuInfo.Skus | Where-Object { $_.Language -eq $LanguageName }
-    if (-not $targetSku) { throw "Язык '$LanguageName' не найден" }
+    if (-not $targetSku) { throw "РЇР·С‹Рє '$LanguageName' РЅРµ РЅР°Р№РґРµРЅ" }
     $skuId = $targetSku.Id
 
-    # 5. Получение ссылок на скачивание для выбранного SKU
+    # 5. РџРѕР»СѓС‡РµРЅРёРµ СЃСЃС‹Р»РѕРє РЅР° СЃРєР°С‡РёРІР°РЅРёРµ РґР»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ SKU
     $headers = @{ Referer = "https://www.microsoft.com/software-download/windows11" }
     $linksInfo = Invoke-RestMethod -UseBasicParsing -Headers $headers "https://www.microsoft.com/software-download-connector/api/GetProductDownloadLinksBySku?profile=$profileId&productEditionId=undefined&SKU=$skuId&friendlyFileName=undefined&Locale=$Locale&sessionID=$sessionId"
 
     $targetLink = $linksInfo.ProductDownloadOptions | Where-Object { $_.DownloadType -eq $ArchType }
-    if (-not $targetLink) { throw "Архитектура (тип $ArchType) не найдена" }
+    if (-not $targetLink) { throw "РђСЂС…РёС‚РµРєС‚СѓСЂР° (С‚РёРї $ArchType) РЅРµ РЅР°Р№РґРµРЅР°" }
 
     return $targetLink.Uri
 }
 
-# Пример использования
+# РџСЂРёРјРµСЂ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЏ
 $url = Get-Windows11DownloadUrl
-Write-Host "Ссылка на ISO: $url"
-# При необходимости скопировать в буфер:
+Write-Host "РЎСЃС‹Р»РєР° РЅР° ISO: $url"
+# РџСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё СЃРєРѕРїРёСЂРѕРІР°С‚СЊ РІ Р±СѓС„РµСЂ:
 Set-Clipboard $url
