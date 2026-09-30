@@ -126,6 +126,14 @@ namespace WindowsDownloader
 
             var w = Regex.Match(mdtJs, @"[?&]w=([A-F0-9]+)").Groups[1].Value;
             var rticks = Regex.Match(mdtJs, "rticks=\"\\+?(\\d+)").Groups[1].Value;
+
+            // The PowerShell reference throws here; mirror that so a changed page
+            // format fails loudly instead of sending an empty telemetry request.
+            if (string.IsNullOrEmpty(w))
+                throw new Exception("Не удалось извлечь параметр 'w' из mdt.js — формат страницы Microsoft изменился.");
+            if (string.IsNullOrEmpty(rticks))
+                throw new Exception("Не удалось извлечь параметр 'rticks' из mdt.js — формат страницы Microsoft изменился.");
+
             var mdt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
 
             await _httpClient.GetAsync(
@@ -154,7 +162,9 @@ namespace WindowsDownloader
                 throw new Exception($"Язык '{LanguageName}' не найден. Доступны: {available}");
             }
 
-            var skuId = targetSku["Id"].Value<string>();
+            var skuId = targetSku["Id"]?.Value<string>();
+            if (string.IsNullOrEmpty(skuId))
+                throw new Exception("В ответе SKU отсутствует обязательное поле 'Id'.");
 
             var linkUrl =
                 $"https://www.microsoft.com/software-download-connector/api/GetProductDownloadLinksBySku" +
@@ -180,7 +190,11 @@ namespace WindowsDownloader
             if (targetLink == null)
                 throw new Exception("Ссылка для x64 не найдена.");
 
-            return targetLink["Uri"].Value<string>();
+            var uri = targetLink["Uri"]?.Value<string>();
+            if (string.IsNullOrEmpty(uri))
+                throw new Exception("В ответе отсутствует поле 'Uri' для x64-ссылки.");
+
+            return uri;
         }
     }
 }
