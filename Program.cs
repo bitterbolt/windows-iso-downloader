@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -16,7 +16,14 @@ namespace WindowsDownloader
         {
             try
             {
-                RunAsync().GetAwaiter().GetResult();
+                if (args.Any(a => a == "--help" || a == "-h" || a == "/?"))
+                {
+                    ShowUsage();
+                    return;
+                }
+
+                var options = ParseOptions(args);
+                RunAsync(options).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -27,11 +34,52 @@ namespace WindowsDownloader
                 Console.ResetColor();
             }
 
-            Console.WriteLine("\nНажмите любую клавишу для выхода...");
-            Console.ReadKey();
+            if (!Console.IsInputRedirected)
+            {
+                Console.WriteLine("\nНажмите любую клавишу для выхода...");
+                Console.ReadKey();
+            }
         }
 
-        private static async Task RunAsync()
+        private static void ShowUsage()
+        {
+            Console.WriteLine("Использование: GetWindowsIso.exe [опции]");
+            Console.WriteLine("Опции:");
+            Console.WriteLine("  --lang <name>       Язык (по умолчанию: Russian)");
+            Console.WriteLine("  --locale <code>     Локаль запроса (по умолчанию: ru-ru)");
+            Console.WriteLine("  --edition <id>      ID редакции продукта (по умолчанию: 3262 - Win 11)");
+            Console.WriteLine("  --arch <1|2>        Архитектура (1: x64, 2: x86/arm64, по умолчанию: 1)");
+            Console.WriteLine("  --help, -h          Справка");
+        }
+
+        private static WindowsDownloadUrlProvider ParseOptions(string[] args)
+        {
+            var provider = new WindowsDownloadUrlProvider();
+            for (int i = 0; i < args.Length; i++)
+            {
+                string arg = args[i];
+                if ((arg == "--lang" || arg == "-l") && i + 1 < args.Length)
+                {
+                    provider.LanguageName = args[++i];
+                }
+                else if ((arg == "--locale") && i + 1 < args.Length)
+                {
+                    provider.Locale = args[++i];
+                }
+                else if ((arg == "--edition" || arg == "-e") && i + 1 < args.Length)
+                {
+                    provider.ProductEditionId = args[++i];
+                }
+                else if ((arg == "--arch" || arg == "-a") && i + 1 < args.Length && int.TryParse(args[i + 1], out int arch))
+                {
+                    provider.ArchType = arch;
+                    i++;
+                }
+            }
+            return provider;
+        }
+
+        private static async Task RunAsync(WindowsDownloadUrlProvider provider)
         {
             ServicePointManager.SecurityProtocol =
                 SecurityProtocolType.Tls12 |
@@ -39,9 +87,9 @@ namespace WindowsDownloader
 
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine("=== Microsoft Windows ISO Downloader ===");
+            Console.WriteLine($"Параметры: Издание ID={provider.ProductEditionId}, Язык={provider.LanguageName}, Локаль={provider.Locale}");
             Console.ResetColor();
 
-            var provider = new WindowsDownloadUrlProvider();
             string url = await provider.GetDownloadUrlAsync();
 
             Console.ForegroundColor = ConsoleColor.Green;
@@ -95,10 +143,10 @@ namespace WindowsDownloader
 
     public class WindowsDownloadUrlProvider
     {
-        private const string ProductEditionId = "3262";   // Windows 11
-        private const string Locale = "ru-ru";
-        private const string LanguageName = "Russian";
-        private const int ArchType = 1;                   // x64
+        public string ProductEditionId { get; set; } = "3262";   // Windows 11
+        public string Locale { get; set; } = "ru-ru";
+        public string LanguageName { get; set; } = "Russian";
+        public int ArchType { get; set; } = 1;                   // x64
         private const string OrgId = "y6jn8c31";
         private const string ProfileId = "606624d44113";
         private const string InstanceId = "560dc9f3-1aa5-4a2f-b63c-9e18f8d0e175";
