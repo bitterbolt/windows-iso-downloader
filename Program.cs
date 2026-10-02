@@ -14,15 +14,15 @@ namespace WindowsDownloader
     {
         static void Main(string[] args)
         {
+            var options = DownloaderOptions.Parse(args);
             try
             {
-                if (args.Any(a => a == "--help" || a == "-h" || a == "/?"))
+                if (options.ShowHelp)
                 {
                     ShowUsage();
                     return;
                 }
 
-                var options = ParseOptions(args);
                 RunAsync(options).GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -34,7 +34,7 @@ namespace WindowsDownloader
                 Console.ResetColor();
             }
 
-            if (!Console.IsInputRedirected)
+            if (!options.Quiet && !Console.IsInputRedirected)
             {
                 Console.WriteLine("\nНажмите любую клавишу для выхода...");
                 Console.ReadKey();
@@ -45,74 +45,74 @@ namespace WindowsDownloader
         {
             Console.WriteLine("Использование: GetWindowsIso.exe [опции]");
             Console.WriteLine("Опции:");
-            Console.WriteLine("  --lang <name>       Язык (по умолчанию: Russian)");
+            Console.WriteLine("  --lang, -l <name>   Язык (по умолчанию: Russian)");
             Console.WriteLine("  --locale <code>     Локаль запроса (по умолчанию: ru-ru)");
-            Console.WriteLine("  --edition <id>      ID редакции продукта (по умолчанию: 3262 - Win 11)");
-            Console.WriteLine("  --arch <1|2>        Архитектура (1: x64, 2: x86/arm64, по умолчанию: 1)");
+            Console.WriteLine("  --edition, -e <id>  ID редакции продукта (по умолчанию: 3262 - Win 11)");
+            Console.WriteLine("  --arch, -a <1|2>    Архитектура (1: x64, 2: x86/arm64, по умолчанию: 1)");
+            Console.WriteLine("  --no-clipboard      Не копировать ссылку в буфер обмена");
+            Console.WriteLine("  --quiet, -q         Выводить только итоговую ссылку без баннера");
             Console.WriteLine("  --help, -h          Справка");
         }
 
-        private static WindowsDownloadUrlProvider ParseOptions(string[] args)
-        {
-            var provider = new WindowsDownloadUrlProvider();
-            for (int i = 0; i < args.Length; i++)
-            {
-                string arg = args[i];
-                if ((arg == "--lang" || arg == "-l") && i + 1 < args.Length)
-                {
-                    provider.LanguageName = args[++i];
-                }
-                else if ((arg == "--locale") && i + 1 < args.Length)
-                {
-                    provider.Locale = args[++i];
-                }
-                else if ((arg == "--edition" || arg == "-e") && i + 1 < args.Length)
-                {
-                    provider.ProductEditionId = args[++i];
-                }
-                else if ((arg == "--arch" || arg == "-a") && i + 1 < args.Length && int.TryParse(args[i + 1], out int arch))
-                {
-                    provider.ArchType = arch;
-                    i++;
-                }
-            }
-            return provider;
-        }
-
-        private static async Task RunAsync(WindowsDownloadUrlProvider provider)
+        private static async Task RunAsync(DownloaderOptions options)
         {
             ServicePointManager.SecurityProtocol =
                 SecurityProtocolType.Tls12 |
                 SecurityProtocolType.Tls13;
 
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("=== Microsoft Windows ISO Downloader ===");
-            Console.WriteLine($"Параметры: Издание ID={provider.ProductEditionId}, Язык={provider.LanguageName}, Локаль={provider.Locale}");
-            Console.ResetColor();
+            var provider = new WindowsDownloadUrlProvider
+            {
+                LanguageName = options.LanguageName,
+                Locale = options.Locale,
+                ProductEditionId = options.ProductEditionId,
+                ArchType = options.ArchType
+            };
+
+            if (!options.Quiet)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("=== Microsoft Windows ISO Downloader ===");
+                Console.WriteLine($"Параметры: Издание ID={provider.ProductEditionId}, Язык={provider.LanguageName}, Локаль={provider.Locale}");
+                Console.ResetColor();
+            }
 
             string url = await provider.GetDownloadUrlAsync();
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("\n[УСПЕХ] Прямая ссылка на ISO:");
-            Console.WriteLine("--------------------------------------------------");
-            Console.ResetColor();
-            Console.WriteLine(url);
-            Console.WriteLine("--------------------------------------------------");
-
-            // Копирование через STA-поток
-            try
+            if (options.Quiet)
             {
-                CopyToClipboard(url);
-
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("[OK] Ссылка успешно скопирована в буфер обмена!");
-                Console.ResetColor();
+                Console.WriteLine(url);
             }
-            catch (Exception ex)
+            else
             {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"[!] Не удалось скопировать в буфер: {ex.Message}");
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("\n[УСПЕХ] Прямая ссылка на ISO:");
+                Console.WriteLine("--------------------------------------------------");
                 Console.ResetColor();
+                Console.WriteLine(url);
+                Console.WriteLine("--------------------------------------------------");
+            }
+
+            if (options.CopyToClipboard)
+            {
+                try
+                {
+                    CopyToClipboard(url);
+                    if (!options.Quiet)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("[OK] Ссылка успешно скопирована в буфер обмена!");
+                        Console.ResetColor();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (!options.Quiet)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine($"[!] Не удалось скопировать в буфер: {ex.Message}");
+                        Console.ResetColor();
+                    }
+                }
             }
         }
 
